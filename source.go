@@ -45,7 +45,7 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 			Timestamp:     now,
 		}
 		t.Data = data.Map{
-			"topic":   data.String(s.topic),
+			"topic":   data.String(m.Topic()),
 			"payload": data.String(string(m.Payload())),
 		}
 		w.Write(ctx, t)

@@ -2,7 +2,7 @@ package plugin
 
 import (
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
-	"pfi/suma/mqtt"
+	"pfi/sensorbee/mqtt"
 )
 
 func init() {

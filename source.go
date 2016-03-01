@@ -46,7 +46,7 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 		}
 		t.Data = data.Map{
 			"topic":   data.String(m.Topic()),
-			"payload": data.String(string(m.Payload())),
+			"payload": data.Blob(m.Payload()),
 		}
 		w.Write(ctx, t)
 	}

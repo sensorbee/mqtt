@@ -46,7 +46,7 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 		}
 		t.Data = data.Map{
 			"topic":   data.String(m.Topic()),
-			"payload": data.String(string(m.Payload())),
+			"payload": data.Blob(m.Payload()),
 		}
 		w.Write(ctx, t)
 	}
@@ -67,6 +67,14 @@ func (s *source) Stop(ctx *core.Context) error {
 }
 
 // NewSource create a new Source receiving data from MQTT broker.
+//
+// topic: set topics
+//
+// broker: set IP address, default "172.0.0.1:1883"
+//
+// user: set user name, default ""
+//
+// password: set password, default ""
 func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Source, error) {
 	s := &source{
 		broker:   "127.0.0.1:1883",

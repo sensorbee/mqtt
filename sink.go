@@ -36,6 +36,15 @@ func (s *sink) Close(ctx *core.Context) error {
 	return nil
 }
 
+// NewSink returns a sink as MQTT publisher.
+//
+// topic: set topics
+//
+// broker: set IP address, default "172.0.0.1:1883"
+//
+// user: set user name, default ""
+//
+// password: set password, default ""
 func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Sink, error) {
 	s := &sink{
 		qos:      0,

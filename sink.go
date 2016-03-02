@@ -19,7 +19,7 @@ type sink struct {
 	password     string
 	payloadPath  data.Path
 	topicPath    data.Path
-	defaultTopic *string
+	defaultTopic string
 }
 
 func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
@@ -45,10 +45,10 @@ func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
 
 	topic := ""
 	if to, err := t.Data.Get(s.topicPath); err != nil {
-		if s.defaultTopic == nil {
-			return err
+		if s.defaultTopic == "" {
+			return fmt.Errorf("topic field is missing") // TODO: print path
 		}
-		topic = *s.defaultTopic
+		topic = s.defaultTopic
 	} else if topic, err = data.AsString(to); err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 		password:     "",
 		payloadPath:  data.MustCompilePath("payload"),
 		topicPath:    data.MustCompilePath("topic"),
-		defaultTopic: nil,
+		defaultTopic: "",
 	}
 
 	if v, ok := params["broker"]; ok {
@@ -143,7 +143,10 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 		if err != nil {
 			return nil, err
 		}
-		s.defaultTopic = &t
+		if t == "" {
+			return nil, fmt.Errorf("empty default topic is not supported")
+		}
+		s.defaultTopic = t
 	}
 
 	s.opts = MQTT.NewClientOptions()

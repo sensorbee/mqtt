@@ -12,13 +12,14 @@ type sink struct {
 	opts   *MQTT.ClientOptions
 	client *MQTT.Client
 
-	qos         byte
-	retained    bool
-	topic       string
-	broker      string
-	user        string
-	password    string
-	payloadPath data.Path
+	qos          byte
+	retained     bool
+	broker       string
+	user         string
+	password     string
+	payloadPath  data.Path
+	topicPath    data.Path
+	defaultTopic string
 }
 
 func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
@@ -42,7 +43,17 @@ func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
 		return fmt.Errorf("data type '%v' cannot be used as payload", p.Type())
 	}
 
-	if token := s.client.Publish(s.topic, s.qos, s.retained, b); token.Wait() && token.Error() != nil {
+	topic := ""
+	if to, err := t.Data.Get(s.topicPath); err != nil {
+		if s.defaultTopic == "" {
+			return fmt.Errorf("topic field is missing") // TODO: print path
+		}
+		topic = s.defaultTopic
+	} else if topic, err = data.AsString(to); err != nil {
+		return err
+	}
+
+	if token := s.client.Publish(topic, s.qos, s.retained, b); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	return nil
@@ -55,8 +66,6 @@ func (s *sink) Close(ctx *core.Context) error {
 
 // NewSink returns a sink as MQTT publisher.
 //
-// topic: set topics
-//
 // broker: set IP address, default "172.0.0.1:1883"
 //
 // user: set user name, default ""
@@ -64,23 +73,21 @@ func (s *sink) Close(ctx *core.Context) error {
 // password: set password, default ""
 //
 // payload_field: set payload key name, default "payload"
+//
+// topic_field: set topic key name, default "topic"
+//
+// default_topic: set default topic, optional parameter. if "topic_field"
+// doesn't exist in written tuples, the "default_topic" parameter is used.
 func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Sink, error) {
 	s := &sink{
-		qos:         0,
-		retained:    false,
-		broker:      "127.0.0.1:1883",
-		topic:       "/",
-		user:        "",
-		password:    "",
-		payloadPath: data.MustCompilePath("payload"),
-	}
-
-	if v, ok := params["topic"]; ok {
-		t, err := data.AsString(v)
-		if err != nil {
-			return nil, err
-		}
-		s.topic = t
+		qos:          0,
+		retained:     false,
+		broker:       "127.0.0.1:1883",
+		user:         "",
+		password:     "",
+		payloadPath:  data.MustCompilePath("payload"),
+		topicPath:    data.MustCompilePath("topic"),
+		defaultTopic: "",
 	}
 
 	if v, ok := params["broker"]; ok {
@@ -117,6 +124,29 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 			return nil, err
 		}
 		s.payloadPath = path
+	}
+
+	if v, ok := params["topic_field"]; ok {
+		name, err := data.AsString(v)
+		if err != nil {
+			return nil, err
+		}
+		path, err := data.CompilePath(name)
+		if err != nil {
+			return nil, err
+		}
+		s.topicPath = path
+	}
+
+	if v, ok := params["default_topic"]; ok {
+		t, err := data.AsString(v)
+		if err != nil {
+			return nil, err
+		}
+		if t == "" {
+			return nil, fmt.Errorf("empty default topic is not supported")
+		}
+		s.defaultTopic = t
 	}
 
 	s.opts = MQTT.NewClientOptions()

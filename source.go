@@ -19,11 +19,17 @@ type source struct {
 	broker   string
 	user     string
 	password string
+
+	// channel that will be written to when the
+	// connection is lost
+	disconnect chan struct{}
 }
 
 func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	s.ctx = ctx
 	s.w = w
+
+	s.disconnect = make(chan struct{})
 
 	s.opts = MQTT.NewClientOptions()
 	s.opts.AddBroker("tcp://" + s.broker)
@@ -31,8 +37,12 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 		s.opts.Username = s.user
 		s.opts.Password = s.password
 	}
+	s.opts.OnConnectionLost = func(*MQTT.Client, error) {
+		s.disconnect <- struct{}{}
+	}
 
 	s.client = MQTT.NewClient(s.opts)
+
 	if token := s.client.Connect(); token.Wait() && token.Error() != nil {
 		// TODO: error log
 		return token.Error()
@@ -51,18 +61,25 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 		w.Write(ctx, t)
 	}
 
-	for s.client.IsConnected() {
-		if token := s.client.Subscribe(s.topic, 0, msgHandler); token.Wait() && token.Error() != nil {
-			// TODO: error log
-			return token.Error()
-		}
+	// subscribe to topic
+	if token := s.client.Subscribe(s.topic, 0, msgHandler); token.Wait() && token.Error() != nil {
+		// TODO: error log
+		return token.Error()
 	}
+
+	// wait for the disconnect handler to push
+	// something into the pipe
+	<-s.disconnect
 
 	return nil
 }
 
 func (s *source) Stop(ctx *core.Context) error {
+	// Disconnects caused by calling Disconnect or ForceDisconnect will
+	// not cause an OnConnectionLost callback to execute. Therefore
+	// we need to write to the channel explicitly.
 	s.client.Disconnect(250)
+	s.disconnect <- struct{}{}
 	return nil
 }
 

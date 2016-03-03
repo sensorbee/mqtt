@@ -29,7 +29,7 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	s.ctx = ctx
 	s.w = w
 
-	s.disconnect = make(chan struct{})
+	s.disconnect = make(chan struct{}, 1)
 
 	s.opts = MQTT.NewClientOptions()
 	s.opts.AddBroker("tcp://" + s.broker)

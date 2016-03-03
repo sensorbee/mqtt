@@ -46,7 +46,7 @@ func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
 	topic := ""
 	if to, err := t.Data.Get(s.topicPath); err != nil {
 		if s.defaultTopic == "" {
-			return fmt.Errorf("topic field is missing") // TODO: print path
+			return fmt.Errorf("topic field '%v' is missing", s.topicPath)
 		}
 		topic = s.defaultTopic
 	} else if topic, err = data.AsString(to); err != nil {

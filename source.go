@@ -132,5 +132,5 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 		s.password = p
 	}
 
-	return s, nil
+	return core.ImplementSourceStop(s), nil
 }

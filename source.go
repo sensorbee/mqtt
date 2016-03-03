@@ -30,11 +30,6 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	s.w = w
 
 	s.disconnect = make(chan struct{}, 1)
-	// wait for the disconnect handler to push
-	// something into the pipe
-	defer func() {
-		<-s.disconnect
-	}()
 
 	s.opts = MQTT.NewClientOptions()
 	s.opts.AddBroker("tcp://" + s.broker)
@@ -52,6 +47,12 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 		// TODO: error log
 		return token.Error()
 	}
+
+	// wait for the disconnect handler to push
+	// something into the pipe
+	defer func() {
+		<-s.disconnect
+	}()
 
 	msgHandler := func(c *MQTT.Client, m MQTT.Message) {
 		now := time.Now().UTC()

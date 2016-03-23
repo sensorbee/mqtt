@@ -1,10 +1,12 @@
 package mqtt
 
 import (
+	"fmt"
 	MQTT "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
 	"gopkg.in/sensorbee/sensorbee.v0/data"
+	"sync"
 	"time"
 )
 
@@ -15,6 +17,9 @@ type source struct {
 	opts   *MQTT.ClientOptions
 	client *MQTT.Client
 
+	mut     sync.Mutex
+	stopped bool
+
 	topic    string
 	broker   string
 	user     string
@@ -22,38 +27,36 @@ type source struct {
 
 	// channel that will be written to when the
 	// connection is lost
-	disconnect chan struct{}
+	disconnect chan bool
 }
 
 func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	s.ctx = ctx
 	s.w = w
 
-	s.disconnect = make(chan struct{}, 1)
+	s.disconnect = make(chan bool, 1)
 
+	// define where and how to connect
 	s.opts = MQTT.NewClientOptions()
 	s.opts.AddBroker("tcp://" + s.broker)
 	if s.user != "" {
 		s.opts.Username = s.user
 		s.opts.Password = s.password
 	}
-	s.opts.OnConnectionLost = func(*MQTT.Client, error) {
-		s.disconnect <- struct{}{}
+	s.opts.OnConnectionLost = func(c *MQTT.Client, e error) {
+		// write `true` to signal that the connection was not
+		// terminated on purpose and we should try to reconnect
+		ctx.Log().Info("Lost connection to MQTT broker")
+		s.disconnect <- true
 	}
+	s.opts.AutoReconnect = false
 
+	// NB. if we have just one client instance and create it here,
+	//     then the OnConnectionLost handler will only be called once;
+	//     therefore we create a new client for every reconnect
 	s.client = MQTT.NewClient(s.opts)
 
-	if token := s.client.Connect(); token.Wait() && token.Error() != nil {
-		// TODO: error log
-		return token.Error()
-	}
-
-	// wait for the disconnect handler to push
-	// something into the pipe
-	defer func() {
-		<-s.disconnect
-	}()
-
+	// define what to do with messages
 	msgHandler := func(c *MQTT.Client, m MQTT.Message) {
 		now := time.Now().UTC()
 		t := &core.Tuple{
@@ -67,10 +70,66 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 		w.Write(ctx, t)
 	}
 
-	// subscribe to topic
-	if token := s.client.Subscribe(s.topic, 0, msgHandler); token.Wait() && token.Error() != nil {
-		// TODO: error log
-		return token.Error()
+	// connect in an endless loop
+	waitUntilReconnect := 0 * time.Second
+RECONNECT:
+	for {
+		// wait in second-steps so that we can check whether
+		// the Stop() function has been called while waiting
+		for i := int64(0); i < int64(waitUntilReconnect/time.Second); i++ {
+			time.Sleep(time.Second)
+			s.mut.Lock()
+			stopped := s.stopped // set by the Stop() function
+			s.mut.Unlock()
+			if stopped {
+				break RECONNECT
+			}
+		}
+
+		// try to connect
+		ctx.Log().Info("Connecting to MQTT broker at ", s.broker)
+		if connTok := s.client.Connect(); connTok.WaitTimeout(10*time.Second) && connTok.Error() != nil {
+			// exponential backoff
+			if waitUntilReconnect == 0 {
+				waitUntilReconnect = 1 * time.Second
+			} else {
+				waitUntilReconnect *= 2
+			}
+			ctx.ErrLog(connTok.Error()).
+				Info("Failed to connect to MQTT broker, reconnecting in ", waitUntilReconnect)
+			if waitUntilReconnect > 12*time.Hour {
+				return fmt.Errorf("reached maximum number of reconnects")
+			}
+			continue
+		}
+
+		// subscribe to topic
+		if subTok := s.client.Subscribe(s.topic, 0, msgHandler); subTok.WaitTimeout(10*time.Second) && subTok.Error() != nil {
+			// exponential backoff
+			if waitUntilReconnect == 0 {
+				waitUntilReconnect = 1 * time.Second
+			} else {
+				waitUntilReconnect *= 2
+			}
+			ctx.ErrLog(subTok.Error()).
+				Info("Failed to subscribe to topic: %s", s.topic)
+			if waitUntilReconnect > 12*time.Hour {
+				return fmt.Errorf("reached maximum number of reconnects")
+			}
+			continue
+		}
+
+		// once we succeeded, we reset the reconnect counter
+		waitUntilReconnect = 0 * time.Second
+
+		// here we wait until the handler in OnConnectionLost
+		// or Stop() pushes something into the `disconnect` channel
+		needsReconnect := <-s.disconnect
+		if !needsReconnect {
+			break
+		}
+		// create a new client object for the next try
+		s.client = MQTT.NewClient(s.opts)
 	}
 
 	return nil
@@ -81,7 +140,14 @@ func (s *source) Stop(ctx *core.Context) error {
 	// not cause an OnConnectionLost callback to execute. Therefore
 	// we need to write to the channel explicitly.
 	s.client.Disconnect(250)
-	s.disconnect <- struct{}{}
+	// write `false` to signal that we should not try to reconnect
+	s.disconnect <- false
+	// also, in case that we are not connected yet, set a flag
+	// that we should stop trying
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.stopped = true
+
 	return nil
 }
 

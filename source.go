@@ -72,7 +72,7 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 
 	// connect in an endless loop
 	waitUntilReconnect := 0 * time.Second
-RECONNECT:
+ReconnectLoop:
 	for {
 		// wait in second-steps so that we can check whether
 		// the Stop() function has been called while waiting
@@ -82,7 +82,7 @@ RECONNECT:
 			stopped := s.stopped // set by the Stop() function
 			s.mut.Unlock()
 			if stopped {
-				break RECONNECT
+				break ReconnectLoop
 			}
 		}
 

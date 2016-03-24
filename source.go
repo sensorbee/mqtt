@@ -1,7 +1,6 @@
 package mqtt
 
 import (
-	"fmt"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
@@ -70,8 +69,27 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 		w.Write(ctx, t)
 	}
 
-	// connect in an endless loop
 	waitUntilReconnect := 0 * time.Second
+	// TODO make minWait and maxWait user-configurable
+	minWait := 1 * time.Second
+	maxWait := 1 * time.Minute
+	backoff := func() error {
+		// exponential backoff
+		if waitUntilReconnect == 0 {
+			waitUntilReconnect = minWait
+		} else {
+			waitUntilReconnect *= 2
+		}
+		// truncate to maximum
+		if waitUntilReconnect > maxWait {
+			waitUntilReconnect = maxWait
+		}
+		// TODO also keep track of how often we have retried
+		//      and return an error if above some limit
+		return nil
+	}
+
+	// connect in an endless loop
 ReconnectLoop:
 	for {
 		// wait in second-steps so that we can check whether
@@ -89,33 +107,17 @@ ReconnectLoop:
 		// try to connect
 		ctx.Log().Info("Connecting to MQTT broker at ", s.broker)
 		if connTok := s.client.Connect(); connTok.WaitTimeout(10*time.Second) && connTok.Error() != nil {
-			// exponential backoff
-			if waitUntilReconnect == 0 {
-				waitUntilReconnect = 1 * time.Second
-			} else {
-				waitUntilReconnect *= 2
-			}
+			backoff()
 			ctx.ErrLog(connTok.Error()).
 				Info("Failed to connect to MQTT broker, reconnecting in ", waitUntilReconnect)
-			if waitUntilReconnect > 12*time.Hour {
-				return fmt.Errorf("reached maximum number of reconnects")
-			}
 			continue
 		}
 
 		// subscribe to topic
 		if subTok := s.client.Subscribe(s.topic, 0, msgHandler); subTok.WaitTimeout(10*time.Second) && subTok.Error() != nil {
-			// exponential backoff
-			if waitUntilReconnect == 0 {
-				waitUntilReconnect = 1 * time.Second
-			} else {
-				waitUntilReconnect *= 2
-			}
+			backoff()
 			ctx.ErrLog(subTok.Error()).
 				Info("Failed to subscribe to topic: %s", s.topic)
-			if waitUntilReconnect > 12*time.Hour {
-				return fmt.Errorf("reached maximum number of reconnects")
-			}
 			continue
 		}
 

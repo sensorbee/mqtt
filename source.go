@@ -101,19 +101,19 @@ ReconnectLoop:
 		}
 
 		// try to connect
-		ctx.Log().Info("Connecting to MQTT broker at ", s.broker)
+		ctx.Log().WithField("broker", s.broker).Info("Connecting to MQTT broker")
 		if connTok := s.client.Connect(); connTok.WaitTimeout(10*time.Second) && connTok.Error() != nil {
 			backoff()
-			ctx.ErrLog(connTok.Error()).
-				Info("Failed to connect to MQTT broker, reconnecting in ", waitUntilReconnect)
+			ctx.ErrLog(connTok.Error()).WithField("waitUntilReconnect", waitUntilReconnect).
+				Info("Failed to connect to MQTT broker")
 			continue
 		}
 
 		// subscribe to topic
 		if subTok := s.client.Subscribe(s.topic, 0, msgHandler); subTok.WaitTimeout(10*time.Second) && subTok.Error() != nil {
 			backoff()
-			ctx.ErrLog(subTok.Error()).
-				Info("Failed to subscribe to topic: %s", s.topic)
+			ctx.ErrLog(subTok.Error()).WithField("topic", s.topic).
+				Info("Failed to subscribe to topic")
 			// create a new client object for the next try
 			s.client.Disconnect(0)
 			s.client = MQTT.NewClient(s.opts)

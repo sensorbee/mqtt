@@ -5,7 +5,6 @@ import (
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
 	"gopkg.in/sensorbee/sensorbee.v0/data"
-	"sync"
 	"time"
 )
 
@@ -15,9 +14,6 @@ type source struct {
 
 	opts   *MQTT.ClientOptions
 	client *MQTT.Client
-
-	mut     sync.Mutex
-	stopped bool
 
 	topic    string
 	broker   string
@@ -92,14 +88,14 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	// connect in an endless loop
 ReconnectLoop:
 	for {
-		// wait in second-steps so that we can check whether
-		// the Stop() function has been called while waiting
-		for i := int64(0); i < int64(waitUntilReconnect/time.Second); i++ {
-			time.Sleep(time.Second)
-			s.mut.Lock()
-			stopped := s.stopped // set by the Stop() function
-			s.mut.Unlock()
-			if stopped {
+		// we wait here the specified time between reconnects,
+		// but if Stop() (or another disconnect, but actually
+		// we should not be connected here) is called, return
+		// earlier
+		select {
+		case <-time.After(waitUntilReconnect):
+		case needsReconnect := <-s.disconnect:
+			if !needsReconnect {
 				break ReconnectLoop
 			}
 		}
@@ -147,11 +143,6 @@ func (s *source) Stop(ctx *core.Context) error {
 	s.client.Disconnect(250)
 	// write `false` to signal that we should not try to reconnect
 	s.disconnect <- false
-	// also, in case that we are not connected yet, set a flag
-	// that we should stop trying
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.stopped = true
 
 	return nil
 }

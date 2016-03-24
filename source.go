@@ -12,9 +12,6 @@ type source struct {
 	ctx *core.Context
 	w   core.Writer
 
-	opts   *MQTT.ClientOptions
-	client *MQTT.Client
-
 	topic    string
 	broker   string
 	user     string
@@ -32,24 +29,24 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	s.disconnect = make(chan bool, 1)
 
 	// define where and how to connect
-	s.opts = MQTT.NewClientOptions()
-	s.opts.AddBroker("tcp://" + s.broker)
+	opts := MQTT.NewClientOptions()
+	opts.AddBroker("tcp://" + s.broker)
 	if s.user != "" {
-		s.opts.Username = s.user
-		s.opts.Password = s.password
+		opts.Username = s.user
+		opts.Password = s.password
 	}
-	s.opts.OnConnectionLost = func(c *MQTT.Client, e error) {
+	opts.OnConnectionLost = func(c *MQTT.Client, e error) {
 		// write `true` to signal that the connection was not
 		// terminated on purpose and we should try to reconnect
 		ctx.Log().Info("Lost connection to MQTT broker")
 		s.disconnect <- true
 	}
-	s.opts.AutoReconnect = false
+	opts.AutoReconnect = false
 
 	// NB. if we have just one client instance and create it here,
 	//     then the OnConnectionLost handler will only be called once;
 	//     therefore we create a new client for every reconnect
-	s.client = MQTT.NewClient(s.opts)
+	client := MQTT.NewClient(opts)
 
 	// define what to do with messages
 	msgHandler := func(c *MQTT.Client, m MQTT.Message) {
@@ -102,7 +99,7 @@ ReconnectLoop:
 
 		// try to connect
 		ctx.Log().WithField("broker", s.broker).Info("Connecting to MQTT broker")
-		if connTok := s.client.Connect(); connTok.WaitTimeout(10*time.Second) && connTok.Error() != nil {
+		if connTok := client.Connect(); connTok.WaitTimeout(10*time.Second) && connTok.Error() != nil {
 			backoff()
 			ctx.ErrLog(connTok.Error()).WithField("waitUntilReconnect", waitUntilReconnect).
 				Info("Failed to connect to MQTT broker")
@@ -110,13 +107,13 @@ ReconnectLoop:
 		}
 
 		// subscribe to topic
-		if subTok := s.client.Subscribe(s.topic, 0, msgHandler); subTok.WaitTimeout(10*time.Second) && subTok.Error() != nil {
+		if subTok := client.Subscribe(s.topic, 0, msgHandler); subTok.WaitTimeout(10*time.Second) && subTok.Error() != nil {
 			backoff()
 			ctx.ErrLog(subTok.Error()).WithField("topic", s.topic).
 				Info("Failed to subscribe to topic")
 			// create a new client object for the next try
-			s.client.Disconnect(0)
-			s.client = MQTT.NewClient(s.opts)
+			client.Disconnect(0)
+			client = MQTT.NewClient(opts)
 			continue
 		}
 
@@ -127,20 +124,20 @@ ReconnectLoop:
 		// or Stop() pushes something into the `disconnect` channel
 		needsReconnect := <-s.disconnect
 		if !needsReconnect {
+			// if needsReconnect is false, then Stop()
+			// was called before, so we need to do a graceful
+			// shutdown
+			client.Disconnect(250)
 			break
 		}
 		// create a new client object for the next try
-		s.client = MQTT.NewClient(s.opts)
+		client = MQTT.NewClient(opts)
 	}
 
 	return nil
 }
 
 func (s *source) Stop(ctx *core.Context) error {
-	// Disconnects caused by calling Disconnect or ForceDisconnect will
-	// not cause an OnConnectionLost callback to execute. Therefore
-	// we need to write to the channel explicitly.
-	s.client.Disconnect(250)
 	// write `false` to signal that we should not try to reconnect
 	s.disconnect <- false
 

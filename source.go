@@ -118,6 +118,9 @@ ReconnectLoop:
 			backoff()
 			ctx.ErrLog(subTok.Error()).
 				Info("Failed to subscribe to topic: %s", s.topic)
+			// create a new client object for the next try
+			s.client.Disconnect(0)
+			s.client = MQTT.NewClient(s.opts)
 			continue
 		}
 

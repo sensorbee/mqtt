@@ -2,15 +2,15 @@ package mqtt
 
 import (
 	"fmt"
-	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
 	"gopkg.in/sensorbee/sensorbee.v0/data"
 )
 
 type sink struct {
-	opts   *MQTT.ClientOptions
-	client *MQTT.Client
+	opts   *mqtt.ClientOptions
+	client mqtt.Client
 
 	qos          byte
 	retained     bool
@@ -149,14 +149,14 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 		s.defaultTopic = t
 	}
 
-	s.opts = MQTT.NewClientOptions()
+	s.opts = mqtt.NewClientOptions()
 	s.opts.AddBroker("tcp://" + s.broker)
 	if s.user != "" {
 		s.opts.Username = s.user
 		s.opts.Password = s.password
 	}
 
-	s.client = MQTT.NewClient(s.opts)
+	s.client = mqtt.NewClient(s.opts)
 	if token := s.client.Connect(); token.Wait() && token.Error() != nil {
 		// TODO: error log
 		return nil, token.Error()

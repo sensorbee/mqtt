@@ -1,7 +1,7 @@
 package mqtt
 
 import (
-	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
 	"gopkg.in/sensorbee/sensorbee.v0/data"
@@ -29,13 +29,13 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	s.disconnect = make(chan bool, 1)
 
 	// define where and how to connect
-	opts := MQTT.NewClientOptions()
+	opts := mqtt.NewClientOptions()
 	opts.AddBroker("tcp://" + s.broker)
 	if s.user != "" {
 		opts.Username = s.user
 		opts.Password = s.password
 	}
-	opts.OnConnectionLost = func(c *MQTT.Client, e error) {
+	opts.OnConnectionLost = func(c mqtt.Client, e error) {
 		// write `true` to signal that the connection was not
 		// terminated on purpose and we should try to reconnect
 		ctx.Log().Info("Lost connection to MQTT broker")
@@ -46,10 +46,10 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	// NB. if we have just one client instance and create it here,
 	//     then the OnConnectionLost handler will only be called once;
 	//     therefore we create a new client for every reconnect
-	client := MQTT.NewClient(opts)
+	client := mqtt.NewClient(opts)
 
 	// define what to do with messages
-	msgHandler := func(c *MQTT.Client, m MQTT.Message) {
+	msgHandler := func(c mqtt.Client, m mqtt.Message) {
 		now := time.Now().UTC()
 		t := &core.Tuple{
 			ProcTimestamp: now,
@@ -113,7 +113,7 @@ ReconnectLoop:
 				Info("Failed to subscribe to topic")
 			// create a new client object for the next try
 			client.Disconnect(0)
-			client = MQTT.NewClient(opts)
+			client = mqtt.NewClient(opts)
 			continue
 		}
 
@@ -131,7 +131,7 @@ ReconnectLoop:
 			break
 		}
 		// create a new client object for the next try
-		client = MQTT.NewClient(opts)
+		client = mqtt.NewClient(opts)
 	}
 
 	return nil

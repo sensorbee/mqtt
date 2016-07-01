@@ -36,9 +36,11 @@ func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
 	switch p.Type() {
 	case data.TypeString:
 		str, _ := data.AsString(p)
-		b = []byte(str)
+		b = []byte(str) // TODO: reduce this data copy
 	case data.TypeBlob:
 		b, _ = data.AsBlob(p)
+	case data.TypeArray, data.TypeMap:
+		b = []byte(p.String()) // TODO: reduce this data copy
 	default:
 		return fmt.Errorf("data type '%v' cannot be used as payload", p.Type())
 	}
@@ -72,10 +74,11 @@ func (s *sink) Close(ctx *core.Context) error {
 //		"payload": "any form of dataa including JSON encoded in string"
 //	}
 //
-// A payload needs to be a string or a blob and it's directly sent to a broker.
 // In the case above, the topic of the message is "foo/bar". The field names of
 // topic and payload can be changed by setting topic_field and payload_field
-// parameters, respectively.
+// parameters, respectively. When a payload needs is a string or a blob, it's
+// directly sent to a broker. The payload can also be an array or a map, and it
+// will be sent as JSON.
 //
 // The sink has following optional parameters:
 //

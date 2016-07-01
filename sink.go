@@ -64,20 +64,27 @@ func (s *sink) Close(ctx *core.Context) error {
 	return nil
 }
 
-// NewSink returns a sink as MQTT publisher.
+// NewSink returns a sink as MQTT publisher. To publish a message, a tuple
+// inserted into the sink needs to have two fields: "topic" and "payload":
 //
-// broker: set IP address, default "172.0.0.1:1883"
+//	{
+//		"topic": "foo/bar",
+//		"payload": "any form of dataa including JSON encoded in string"
+//	}
 //
-// user: set user name, default ""
+// A payload needs to be a string or a blob and it's directly sent to a broker.
+// In the case above, the topic of the message is "foo/bar". The field names of
+// topic and payload can be changed by setting topic_field and payload_field
+// parameters, respectively.
 //
-// password: set password, default ""
+// The sink has following optional parameters:
 //
-// payload_field: set payload key name, default "payload"
-//
-// topic_field: set topic key name, default "topic"
-//
-// default_topic: set default topic, optional parameter. if "topic_field"
-// doesn't exist in written tuples, the "default_topic" parameter is used.
+//	* broker: the address of the broker in "host:port" format (default: "127.0.0.1:1883")
+//	* user: the user name to be connected (default: "")
+//	* password: the password of the user (default: "")
+//	* payload_field: the field name in tuples having a payload (default: "payload")
+//	* topic_field: the field name in tuples having a topic (default: "")
+//	* default_topic: the default topic used when a tuple doesn't have topic_field (default: "")
 func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Sink, error) {
 	s := &sink{
 		qos:          0,

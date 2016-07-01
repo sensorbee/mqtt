@@ -144,15 +144,27 @@ func (s *source) Stop(ctx *core.Context) error {
 	return nil
 }
 
-// NewSource create a new Source receiving data from MQTT broker.
+// NewSource create a new Source receiving data from a MQTT broker. The source
+// emits tuples like;
 //
-// topic: set topics
+//	{
+//		"topic": "foo/bar",
+//		"payload": <blob>
+//	}
 //
-// broker: set IP address, default "172.0.0.1:1883"
+// The topic field has topic of the message and the payload field has data
+// as a blob. If the data contains JSON and a user wants to manipulate it,
+// another stream needs to be created:
 //
-// user: set user name, default ""
+//	CREATE STREAM hoge AS
+//	  SELECT RSTREAM decode_json(payload) AS * FROM mqtt_src [RANGE 1 TUPLES];
 //
-// password: set password, default ""
+// The source has following optional parameters:
+//
+//	* topic: set topics
+//	* broker: the address of the broker in "host:port" format (default: "127.0.0.1:1883")
+//	* user: the user name to be connected (default: "")
+//	* password: the password of the user (default: "")
 func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Source, error) {
 	s := &source{
 		broker:   "127.0.0.1:1883",

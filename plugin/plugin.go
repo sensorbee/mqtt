@@ -1,8 +1,8 @@
 package plugin
 
 import (
+	"gopkg.in/sensorbee/mqtt.v1"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
-	"pfi/sensorbee/mqtt"
 )
 
 func init() {

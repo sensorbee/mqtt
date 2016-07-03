@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"errors"
 	"github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
@@ -50,15 +51,10 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 
 	// define what to do with messages
 	msgHandler := func(c mqtt.Client, m mqtt.Message) {
-		now := time.Now().UTC()
-		t := &core.Tuple{
-			ProcTimestamp: now,
-			Timestamp:     now,
-		}
-		t.Data = data.Map{
+		t := core.NewTuple(data.Map{
 			"topic":   data.String(m.Topic()),
 			"payload": data.Blob(m.Payload()),
-		}
+		})
 		w.Write(ctx, t)
 	}
 
@@ -144,24 +140,40 @@ func (s *source) Stop(ctx *core.Context) error {
 	return nil
 }
 
-// NewSource create a new Source receiving data from MQTT broker.
+// NewSource create a new Source receiving data from a MQTT broker. The source
+// emits tuples like;
 //
-// topic: set topics
+//	{
+//		"topic": "foo/bar",
+//		"payload": <blob>
+//	}
 //
-// broker: set IP address, default "172.0.0.1:1883"
+// The topic field has topic of the message and the payload field has data
+// as a blob. If the data contains JSON and a user wants to manipulate it,
+// another stream needs to be created:
 //
-// user: set user name, default ""
+//	CREATE STREAM hoge AS
+//	  SELECT RSTREAM decode_json(payload) AS * FROM mqtt_src [RANGE 1 TUPLES];
 //
-// password: set password, default ""
+// The source has following required parameters:
+//
+//	* topic: the topic to be subscribed
+//
+// The source has following optional parameters:
+//
+//	* broker: the address of the broker in "host:port" format (default: "127.0.0.1:1883")
+//	* user: the user name to be connected (default: "")
+//	* password: the password of the user (default: "")
 func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Source, error) {
 	s := &source{
 		broker:   "127.0.0.1:1883",
-		topic:    "/",
 		user:     "",
 		password: "",
 	}
 
-	if v, ok := params["topic"]; ok {
+	if v, ok := params["topic"]; !ok {
+		return nil, errors.New("topic parameter is missing")
+	} else {
 		t, err := data.AsString(v)
 		if err != nil {
 			return nil, err

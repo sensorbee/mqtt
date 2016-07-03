@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"errors"
 	"github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
@@ -154,21 +155,25 @@ func (s *source) Stop(ctx *core.Context) error {
 //	CREATE STREAM hoge AS
 //	  SELECT RSTREAM decode_json(payload) AS * FROM mqtt_src [RANGE 1 TUPLES];
 //
+// The source has following required parameters:
+//
+//	* topic: the topic to be subscribed
+//
 // The source has following optional parameters:
 //
-//	* topic: set topics
 //	* broker: the address of the broker in "host:port" format (default: "127.0.0.1:1883")
 //	* user: the user name to be connected (default: "")
 //	* password: the password of the user (default: "")
 func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Source, error) {
 	s := &source{
 		broker:   "127.0.0.1:1883",
-		topic:    "/",
 		user:     "",
 		password: "",
 	}
 
-	if v, ok := params["topic"]; ok {
+	if v, ok := params["topic"]; !ok {
+		return nil, errors.New("topic parameter is missing")
+	} else {
 		t, err := data.AsString(v)
 		if err != nil {
 			return nil, err

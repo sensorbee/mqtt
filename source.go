@@ -50,15 +50,10 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 
 	// define what to do with messages
 	msgHandler := func(c mqtt.Client, m mqtt.Message) {
-		now := time.Now().UTC()
-		t := &core.Tuple{
-			ProcTimestamp: now,
-			Timestamp:     now,
-		}
-		t.Data = data.Map{
+		t := core.NewTuple(data.Map{
 			"topic":   data.String(m.Topic()),
 			"payload": data.Blob(m.Payload()),
-		}
+		})
 		w.Write(ctx, t)
 	}
 

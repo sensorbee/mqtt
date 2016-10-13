@@ -19,6 +19,9 @@ type source struct {
 	user     string
 	password string
 
+	minWait       time.Duration
+	maxWait       time.Duration
+	reconnRetries int64
 	// channel that will be written to when the
 	// connection is lost
 	disconnect chan bool
@@ -60,22 +63,26 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 	}
 
 	waitUntilReconnect := 0 * time.Second
-	// TODO make minWait and maxWait user-configurable
-	minWait := 1 * time.Second
-	maxWait := 1 * time.Minute
+	retries := int64(0)
 	backoff := func() error {
 		// exponential backoff
 		if waitUntilReconnect == 0 {
-			waitUntilReconnect = minWait
+			waitUntilReconnect = s.minWait
 		} else {
 			waitUntilReconnect *= 2
 		}
 		// truncate to maximum
-		if waitUntilReconnect > maxWait {
-			waitUntilReconnect = maxWait
+		if waitUntilReconnect > s.maxWait {
+			waitUntilReconnect = s.maxWait
 		}
-		// TODO also keep track of how often we have retried
-		//      and return an error if above some limit
+
+		if s.reconnRetries >= 0 {
+			if retries > s.reconnRetries {
+				return errors.New("Gave up to connect to MQTT broker")
+			} else {
+				retries++
+			}
+		}
 		return nil
 	}
 
@@ -97,7 +104,9 @@ ReconnectLoop:
 		// try to connect
 		ctx.Log().WithField("broker", s.broker).Info("Connecting to MQTT broker")
 		if connTok := client.Connect(); connTok.WaitTimeout(10*time.Second) && connTok.Error() != nil {
-			backoff()
+			if err := backoff(); err != nil {
+				return err
+			}
 			ctx.ErrLog(connTok.Error()).WithField("waitUntilReconnect", waitUntilReconnect).
 				Info("Failed to connect to MQTT broker")
 			continue
@@ -105,7 +114,9 @@ ReconnectLoop:
 
 		// subscribe to topic
 		if subTok := client.Subscribe(s.topic, 0, msgHandler); subTok.WaitTimeout(10*time.Second) && subTok.Error() != nil {
-			backoff()
+			if err := backoff(); err != nil {
+				return err
+			}
 			ctx.ErrLog(subTok.Error()).WithField("topic", s.topic).
 				Info("Failed to subscribe to topic")
 			// create a new client object for the next try
@@ -114,8 +125,9 @@ ReconnectLoop:
 			continue
 		}
 
-		// once we succeeded, we reset the reconnect counter
+		// once we succeeded, we reset the reconnect and retry counters
 		waitUntilReconnect = 0 * time.Second
+		retries = 0
 
 		// here we wait until the handler in OnConnectionLost
 		// or Stop() pushes something into the `disconnect` channel
@@ -165,11 +177,17 @@ func (s *source) Stop(ctx *core.Context) error {
 //	* broker: the address of the broker in URI schema://"host:port" format (default: "tcp://127.0.0.1:1883")
 //	* user: the user name to be connected (default: "")
 //	* password: the password of the user (default: "")
+//	* reconnect_min_time: minimal time to wait before reconnecting in Go duration format (default: 1s)
+//	* reconnect_max_time: maximal time to wait before reconnecting in Go duration format (default: 30s)
+//	* reconnect_retries: maximum numbers of reconnect retries. Any negative number means infinite retries (default: 10)
 func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Source, error) {
 	s := &source{
-		broker:   "tcp://127.0.0.1:1883",
-		user:     "",
-		password: "",
+		broker:        "tcp://127.0.0.1:1883",
+		user:          "",
+		password:      "",
+		minWait:       1 * time.Second,
+		maxWait:       30 * time.Second,
+		reconnRetries: 10,
 	}
 
 	if v, ok := params["topic"]; !ok {
@@ -204,6 +222,38 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 			return nil, err
 		}
 		s.password = p
+	}
+
+	if v, ok := params["reconnect_min_time"]; ok {
+		t, err := data.AsString(v)
+		if err != nil {
+			return nil, err
+		}
+		d, err := time.ParseDuration(t)
+		if err != nil {
+			return nil, err
+		}
+		s.minWait = d
+	}
+
+	if v, ok := params["reconnect_max_time"]; ok {
+		t, err := data.AsString(v)
+		if err != nil {
+			return nil, err
+		}
+		d, err := time.ParseDuration(t)
+		if err != nil {
+			return nil, err
+		}
+		s.maxWait = d
+	}
+
+	if v, ok := params["reconnect_retries"]; ok {
+		r, err := data.AsInt(v)
+		if err != nil {
+			return nil, err
+		}
+		s.reconnRetries = r
 	}
 
 	return core.ImplementSourceStop(s), nil

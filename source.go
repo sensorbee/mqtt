@@ -2,11 +2,12 @@ package mqtt
 
 import (
 	"errors"
+	"time"
+
 	"github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
 	"gopkg.in/sensorbee/sensorbee.v0/data"
-	"time"
 )
 
 type source struct {
@@ -31,7 +32,7 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 
 	// define where and how to connect
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker("tcp://" + s.broker)
+	opts.AddBroker(s.broker)
 	if s.user != "" {
 		opts.Username = s.user
 		opts.Password = s.password
@@ -161,12 +162,12 @@ func (s *source) Stop(ctx *core.Context) error {
 //
 // The source has following optional parameters:
 //
-//	* broker: the address of the broker in "host:port" format (default: "127.0.0.1:1883")
+//	* broker: the address of the broker in URI schema://"host:port" format (default: "tcp://127.0.0.1:1883")
 //	* user: the user name to be connected (default: "")
 //	* password: the password of the user (default: "")
 func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Source, error) {
 	s := &source{
-		broker:   "127.0.0.1:1883",
+		broker:   "tcp://127.0.0.1:1883",
 		user:     "",
 		password: "",
 	}

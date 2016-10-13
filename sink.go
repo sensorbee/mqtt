@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"fmt"
+
 	"github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/sensorbee/sensorbee.v0/bql"
 	"gopkg.in/sensorbee/sensorbee.v0/core"
@@ -82,7 +83,7 @@ func (s *sink) Close(ctx *core.Context) error {
 //
 // The sink has following optional parameters:
 //
-//	* broker: the address of the broker in "host:port" format (default: "127.0.0.1:1883")
+//	* broker: the address of the broker in URI "schema://host:port" format (default: "tcp://127.0.0.1:1883")
 //	* user: the user name to be connected (default: "")
 //	* password: the password of the user (default: "")
 //	* payload_field: the field name in tuples having a payload (default: "payload")
@@ -92,7 +93,7 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 	s := &sink{
 		qos:          0,
 		retained:     false,
-		broker:       "127.0.0.1:1883",
+		broker:       "tcp://127.0.0.1:1883",
 		user:         "",
 		password:     "",
 		payloadPath:  data.MustCompilePath("payload"),
@@ -160,7 +161,7 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 	}
 
 	s.opts = mqtt.NewClientOptions()
-	s.opts.AddBroker("tcp://" + s.broker)
+	s.opts.AddBroker(s.broker)
 	if s.user != "" {
 		s.opts.Username = s.user
 		s.opts.Password = s.password

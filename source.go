@@ -187,7 +187,7 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 		password:      "",
 		minWait:       1 * time.Second,
 		maxWait:       30 * time.Second,
-		reconnRetries: 10,
+		reconnRetries: -1,
 	}
 
 	if v, ok := params["topic"]; !ok {

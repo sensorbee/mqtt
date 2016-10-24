@@ -248,13 +248,5 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 		s.maxWait = d
 	}
 
-	if v, ok := params["reconnect_retries"]; ok {
-		r, err := data.AsInt(v)
-		if err != nil {
-			return nil, err
-		}
-		s.reconnRetries = r
-	}
-
 	return core.ImplementSourceStop(s), nil
 }

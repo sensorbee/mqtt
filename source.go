@@ -19,9 +19,13 @@ type source struct {
 	user     string
 	password string
 
-	minWait       time.Duration
-	maxWait       time.Duration
+	minWait time.Duration
+	maxWait time.Duration
+
+	// reconnRetries is the maximum number of retry attempts. This parameter
+	// is for multi-broker support and isn't used at the momment.
 	reconnRetries int64
+
 	// channel that will be written to when the
 	// connection is lost
 	disconnect chan bool
@@ -178,7 +182,6 @@ func (s *source) Stop(ctx *core.Context) error {
 //	* password: the password of the user (default: "")
 //	* reconnect_min_time: minimal time to wait before reconnecting in Go duration format (default: 1s)
 //	* reconnect_max_time: maximal time to wait before reconnecting in Go duration format (default: 30s)
-//	* reconnect_retries: maximum numbers of reconnect retries. Any negative number means infinite retries (default: 10)
 func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.Source, error) {
 	s := &source{
 		broker:        "tcp://127.0.0.1:1883",

@@ -65,10 +65,9 @@ func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
 		if err != nil {
 			return err
 		} else if qq < 0 || qq > 2 {
-			return fmt.Errorf("Wrong QoS: %d", qq)
-		} else {
-			qos = byte(qq)
+			return fmt.Errorf("wrong QoS: %d", qq)
 		}
+		qos = byte(qq)
 	}
 
 	if token := s.client.Publish(topic, qos, s.retained, b); token.Wait() && token.Error() != nil {
@@ -198,7 +197,7 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 			return nil, err
 		}
 		if q < 0 || q > 2 {
-			return nil, fmt.Errorf("Unknown QoS. Qos can only be between 0 and 2")
+			return nil, fmt.Errorf("unknown QoS. Qos can only be between 0 and 2")
 		}
 		s.qos = byte(q)
 	}

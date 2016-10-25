@@ -78,10 +78,9 @@ func (s *source) GenerateStream(ctx *core.Context, w core.Writer) error {
 
 		if s.reconnRetries >= 0 {
 			if retries > s.reconnRetries {
-				return errors.New("Gave up to connect to MQTT broker")
-			} else {
-				retries++
+				return errors.New("gave up to connect to MQTT broker")
 			}
+			retries++
 		}
 		return nil
 	}
@@ -190,9 +189,11 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 		reconnRetries: -1,
 	}
 
-	if v, ok := params["topic"]; !ok {
-		return nil, errors.New("topic parameter is missing")
-	} else {
+	{ // This block is to suppress a golint warning.
+		v, ok := params["topic"]
+		if !ok {
+			return nil, errors.New("topic parameter is missing")
+		}
 		t, err := data.AsString(v)
 		if err != nil {
 			return nil, err

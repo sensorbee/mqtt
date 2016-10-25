@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"errors"
+	"net/url"
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang"
@@ -209,7 +210,10 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 		if err != nil {
 			return nil, err
 		}
-		s.broker = b
+		s.broker, err = adjustOldBrokerURL(b)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if v, ok := params["user"]; ok {
@@ -253,4 +257,27 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 	}
 
 	return core.ImplementSourceStop(s), nil
+}
+
+func adjustOldBrokerURL(urlStr string) (string, error) {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" { // hostname only
+		return "tcp://" + urlStr + ":1883", nil
+	}
+	if u.Opaque == "" { // scheme://host:port format
+		if u.Host == "" { // reject invalid "host:" (no port number given) format
+			return "", errors.New("invalid broker URL")
+		}
+		return urlStr, nil
+	}
+
+	// Probably host:port format
+	newURL := "tcp://" + urlStr
+	if _, err := url.Parse(newURL); err != nil {
+		return "", err
+	}
+	return newURL, nil
 }

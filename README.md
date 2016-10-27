@@ -84,8 +84,12 @@ below:
 > INSERT INTO mqtt_sink FROM processed;
 ```
 
-The name of `topic` and `payload` fields can be changed by setting `topic_field`
-and `payload_field` parameters described later.
+A tuple inserted into the sink can have the `qos` field. Its value must be 0, 1,
+or 2 as an integer. Those numbers correspond to at most once, at least once,
+and exactly once, respectively.
+
+The names of `topic`, `payload`, and `qos` fields can be changed by setting
+`topic_field`, `payload_field`, and `qos_field` parameters described later.
 
 ## Reference
 
@@ -97,6 +101,8 @@ parameters.
 * `broker`
 * `user`
 * `password`
+* `reconnect_min_time`
+* `reconnect_max_time`
 
 #### `topic`
 
@@ -106,8 +112,11 @@ wildcards. `topic` is a required parameter.
 #### `broker`
 
 `broker` is the address of the MQTT broker from which the source subscribes.
-The address should be in `"host:port"` format. The default value is
-`127.0.0.1:1883`.
+The address should be in `"scheme://host:port"` format. The default value is
+`tcp://127.0.0.1:1883`.
+
+The old `"host:port"` format is still supported in the latest version, but the
+support will be dropped in the next major version up.
 
 #### `user`
 
@@ -119,6 +128,36 @@ an empty string.
 `password` is the password of the user specified by the `user` parameter.
 The default value is an empty string.
 
+#### `reconnect_min_time`
+
+`reconnect_min_time` is the minimal time to wait before reconnecting to the
+broker. The value can be specified in second as an integer or a float. It can
+also be a string having Go duration format like `"1s"`. The default value is 1
+second.
+
+Examples:
+
+```
+reconnect_min_time = 5
+reconnect_min_time = 1.5
+reconnect_min_time = "3s"
+```
+
+#### `reconnect_max_time`
+
+`reconnect_max_time` is the maximum time to wait before reconnecting to the
+broker. The value can be specified in second as an integer or a float. It can
+also be a string having Go duration format like `"1s"`. The default value is 30
+second.
+
+Examples:
+
+```
+reconnect_max_time = 40
+reconnect_max_time = 60.5
+reconnect_max_time = "1m"
+```
+
 ### Sink
 
 The MQTT sink has following optional parameters.
@@ -128,13 +167,18 @@ The MQTT sink has following optional parameters.
 * `password`
 * `topic_field`
 * `payload_field`
+* `qos_field`
 * `default_topic`
+* `default_qos`
 
 #### `broker`
 
 `broker` is the address of the MQTT broker to which the sink publishes messages.
-The address should be in `"host:port"` format. The default value is
-`127.0.0.1:1883`.
+The address should be in `"scheme://host:port"` format. The default value is
+`tcp://127.0.0.1:1883`.
+
+The old `"host:port"` format is still supported in the latest version, but the
+support will be dropped in the next major version up.
 
 #### `user`
 
@@ -176,8 +220,29 @@ like below:
 
 Note that both `topic_field` and `payload_field` can be specified at once.
 
+#### `qos_field`
+
+`qos_field` is the name of the field containing a qos as an integer. For
+example, when `qos_field = "my_qos"`, a tuple inserted into the sink should
+look like below:
+
+```
+{
+    "my_qos": 2,
+    "topic": "some/topic",
+    "payload": ... payload data ...
+}
+```
+
+The default value is `qos`.
+
 #### `default_topic`
 
 `default_topic` is used when a tuple doesn't have a topic field. Its value
 must not be empty. When this parameter is not specified, a tuple missing the
 topic field will result in an error and will not be published.
+
+#### `default_qos`
+
+`default_qos` is used when a tuple doesn't have a qos field. Its value must be
+0 (at most once), 1 (at least once), or 2 (exactly once). The default value is 0.

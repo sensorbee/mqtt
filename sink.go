@@ -57,10 +57,8 @@ func (s *sink) Write(ctx *core.Context, t *core.Tuple) error {
 		return err
 	}
 
-	qos := byte(0)
-	if q, err := t.Data.Get(s.qosPath); err != nil {
-		qos = s.qos
-	} else {
+	qos := s.qos
+	if q, err := t.Data.Get(s.qosPath); err == nil {
 		qq, err := data.AsInt(q)
 		if err != nil {
 			return err

@@ -233,11 +233,7 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 	}
 
 	if v, ok := params["reconnect_min_time"]; ok {
-		t, err := data.AsString(v)
-		if err != nil {
-			return nil, err
-		}
-		d, err := time.ParseDuration(t)
+		d, err := data.ToDuration(v)
 		if err != nil {
 			return nil, err
 		}
@@ -245,11 +241,7 @@ func NewSource(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core
 	}
 
 	if v, ok := params["reconnect_max_time"]; ok {
-		t, err := data.AsString(v)
-		if err != nil {
-			return nil, err
-		}
-		d, err := time.ParseDuration(t)
+		d, err := data.ToDuration(v)
 		if err != nil {
 			return nil, err
 		}

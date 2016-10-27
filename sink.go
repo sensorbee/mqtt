@@ -124,7 +124,10 @@ func NewSink(ctx *core.Context, ioParams *bql.IOParams, params data.Map) (core.S
 		if err != nil {
 			return nil, err
 		}
-		s.broker = b
+		s.broker, err = adjustOldBrokerURL(b)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if v, ok := params["user"]; ok {

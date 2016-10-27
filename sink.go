@@ -101,7 +101,7 @@ func (s *sink) Close(ctx *core.Context) error {
 //
 // The sink has following optional parameters:
 //
-//	* broker: the address of the broker in URI "schema://host:port" format (default: "tcp://127.0.0.1:1883")
+//	* broker: the address of the broker in URI "scheme://host:port" format (default: "tcp://127.0.0.1:1883")
 //	* user: the user name to be connected (default: "")
 //	* password: the password of the user (default: "")
 //	* payload_field: the field name in tuples having a payload (default: "payload")
